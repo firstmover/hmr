@@ -117,17 +117,28 @@ def preprocess_image(img_path, json_path=None):
 
 
 def main(img_path, json_path=None):
+
     sess = tf.Session()
     model = RunModel(config, sess=sess)
 
     input_img, proc_param, img = preprocess_image(img_path, json_path)
+    # input_img: (224, 224, 3)
+    # img: (224, 224, 3)
+
     # Add batch dimension: 1 x D x D x 3
     input_img = np.expand_dims(input_img, 0)
 
-    joints, verts, cams, joints3d, theta = model.predict(
-        input_img, get_theta=True)
+    results = model.predict(input_img)
 
-    visualize(img, proc_param, joints[0], verts[0], cams[0])
+    # joints: (1, 19, 2)
+    # verts (1, 6890, 3)
+    # cams: (1, 3)
+    # joints3d: (1, 19, 3)
+    # theta: (1, 85)
+    # shape: (1, 10)
+
+    print("shapes: {}".format(results['shapes']))
+    visualize(img, proc_param, results['joints'][0], results["verts"][0], results["cams"][0])
 
 
 if __name__ == '__main__':
