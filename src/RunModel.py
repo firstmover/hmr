@@ -147,4 +147,11 @@ class RunModel(object):
         joints = results['joints']
         results['joints'] = ((joints + 1) * 0.5) * self.img_size
 
-        return results
+        # joints: (1, 19, 2)
+        # verts (1, 6890, 3)
+        # cams: (1, 3)
+        # joints3d: (1, 19, 3)
+        # theta: (1, 85)
+        # shape: (1, 10)
+
+        return {k: v[0].tolist() for k, v in results.items()}

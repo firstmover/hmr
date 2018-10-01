@@ -44,58 +44,6 @@ flags.DEFINE_string(
     'If specified, uses the openpose output to crop the image.')
 
 
-def visualize(img, proc_param, joints, verts, cam):
-    """
-    Renders the result in original image coordinate frame.
-    """
-    cam_for_render, vert_shifted, joints_orig = vis_util.get_original(
-        proc_param, verts, cam, joints, img_size=img.shape[:2])
-
-    # Render results
-    skel_img = vis_util.draw_skeleton(img, joints_orig)
-    rend_img_overlay = renderer(
-        vert_shifted, cam=cam_for_render, img=img, do_alpha=True)
-    rend_img = renderer(
-        vert_shifted, cam=cam_for_render, img_size=img.shape[:2])
-    rend_img_vp1 = renderer.rotated(
-        vert_shifted, 60, cam=cam_for_render, img_size=img.shape[:2])
-    rend_img_vp2 = renderer.rotated(
-        vert_shifted, -60, cam=cam_for_render, img_size=img.shape[:2])
-
-    import matplotlib.pyplot as plt
-    # plt.ion()
-    plt.figure(1)
-    plt.clf()
-    plt.subplot(231)
-    plt.imshow(img)
-    plt.title('input')
-    plt.axis('off')
-    plt.subplot(232)
-    plt.imshow(skel_img)
-    plt.title('joint projection')
-    plt.axis('off')
-    plt.subplot(233)
-    plt.imshow(rend_img_overlay)
-    plt.title('3D Mesh overlay')
-    plt.axis('off')
-    plt.subplot(234)
-    plt.imshow(rend_img)
-    plt.title('3D mesh')
-    plt.axis('off')
-    plt.subplot(235)
-    plt.imshow(rend_img_vp1)
-    plt.title('diff vp')
-    plt.axis('off')
-    plt.subplot(236)
-    plt.imshow(rend_img_vp2)
-    plt.title('diff vp')
-    plt.axis('off')
-    plt.draw()
-    plt.show()
-    # import ipdb
-    # ipdb.set_trace()
-
-
 def preprocess_image(img_path, json_path=None):
     img = io.imread(img_path)
     if img.shape[2] == 4:
@@ -129,26 +77,13 @@ def main(img_path, model, json_path=None):
     # img: (224, 224, 3)
 
     # Add batch dimension: 1 x D x D x 3
-    input_img = np.expand_dims(input_img, 0)
-
-    results = model.predict(input_img)
-
-    # joints: (1, 19, 2)
-    # verts (1, 6890, 3)
-    # cams: (1, 3)
-    # joints3d: (1, 19, 3)
-    # theta: (1, 85)
-    # shape: (1, 10)
-
-    return results["shapes"][0]  
+    return model.predict(np.expand_dims(input_img, 0))
 
 
 if __name__ == '__main__':
     config = flags.FLAGS
     config(sys.argv)
-    # Using pre-trained model, change this to use your own.
     config.load_path = src.config.PRETRAINED_MODEL
-
     config.batch_size = 1
 
     renderer = vis_util.SMPLRenderer(face_path=config.smpl_face_path)
@@ -156,19 +91,20 @@ if __name__ == '__main__':
     sess = tf.Session()
     model = RunModel(config, sess=sess)
 
-    # get image list.
-    store_path = "/afs/csail.mit.edu/u/l/liuyingcheng/lyc_storage/"
-    crop_image_path = os.path.join(store_path, "crop_person_2") 
-    assert os.path.exists(crop_image_path) 
-    _, _, filenames = next(os.walk(crop_image_path))
-    imgnames = [f for f in filenames if ".png" in f]
-    all_crop_image = [os.path.join(crop_image_path, f) for f in imgnames]
-    print('get nr crop image = {}, from path: {}'.format(len(all_crop_image), crop_image_path)) 
-
-    all_shapes = [main(p, model, None) for p in all_crop_image]
-    print("get image beta nr = {}".format(len(all_shapes))) 
-
-    img2beta = {k: v.tolist() for k, v in zip(imgnames, all_shapes)}
-    with open(os.path.join(store_path, "beta.json"), "w") as f:
-        f.write(json.dumps(img2beta))
+    raw_img_dir = "/afs/csail.mit.edu/u/l/liuyingcheng/lyc_storage/rf-pose-shape/single_person"
+    _, exp_dirs, _ = next(os.walk(raw_img_dir))
+    for exp in exp_dirs:
+        print("exp:", exp)
+        exp_root = os.path.join(raw_img_dir, exp)
+        crop_img_dir = os.path.join(exp_root, "crop_person")
+        if not os.path.exists(crop_img_dir):
+            raise ValueError("crop person image not found.")
+        _, _, crop_img_names = next(os.walk(crop_img_dir))
+        crop_img_names = [f for f in crop_img_names if (".png" in f or ".jpg" in f)]
+        crop_img_pathes = [os.path.join(crop_img_dir, f) for f in crop_img_names]
+        print("get nr crop img = {}".format(len(crop_img_pathes)))
+        img_name2result = {name: main(img, model, None) for name, img in zip(crop_img_names, crop_img_pathes)}
+        print("get nr result = {}".format(len(list(img_name2result.keys()))))
+        with open(os.path.join(exp_root, "img_name2result.json"), "w") as f:
+            f.write(json.dumps(img_name2result))
 
