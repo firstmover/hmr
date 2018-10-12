@@ -7,3 +7,5 @@ forrelease.sh
 .idea
 venv_hmr
 *.swp
+*.jpg
+*.png 
